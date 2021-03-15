@@ -13,16 +13,17 @@ module.exports = {
             var words = [];
             var mostOccurredWords = [];
             var resObj = res;
-            fs.createReadStream(__dirname + "/../Data/test.txt").pipe(es.split()).pipe(
+            fs.createReadStream(__dirname + "/../Data/big.txt").pipe(es.split()).pipe(
                 es.mapSync((line) => {
                     totalLines++;
-                    let wordsArray = line.toLowerCase().replace(/[^a-zA-Z0-9 ]/g, '').split(" ");
+                    //senitize data and removed special chars
+                    let wordsArray = line.toLowerCase().replace('  ', ' ').replace(/[^a-zA-Z0-9 ]/g, '').split(" ");
                     words.push(...wordsArray);
                 }).on('error', (err) => {
                     console.log("Error", err);
                 }).on('end', () => {
-                    console.log("File Read Completed ..");
-                    console.log("Total Lines", totalLines);
+                    // console.log("File Read Completed ..");
+                    // console.log("Total Lines", totalLines);
                     const wordFequency = words.reduce((map, word) => Object.assign(map, {
                         [word]: (map[word])
                             ? map[word] + 1
@@ -36,38 +37,40 @@ module.exports = {
 
                     var responses = [];
                     var completed_requests = 0;
-                    // console.log("test...",mostOccurredWords)
-                    mostOccurredWords.map(async (eachWord, index) => {
-                        https.get(API_URL + eachWord, function (res) {
-                            var jsonVar = "";
-                            res.on('data', function (chunk) {
-                                jsonVar += chunk;
-                            });
-                            res.on('end', function () {
-                                // if (completed_requests++ == mostOccurredWords.length - 1) {
-                                //     // All downloads are completed
-                                //    // console.log('body:', JSON.parse(responses).join());
-                                //     let xyz = responses.join();
-                                //     resObj.send([xyz]);
-                                // }
+                    //console.log("test...", mostOccurredWords);
 
-                                if (res.statusCode === 200) {
-                                    try {
-                                        var data = JSON.parse(jsonVar);
-                                        // data is available here:
-                                        console.log(data);
-                                    } catch (e) {
-                                        console.log('Error parsing JSON!');
+
+                    //get top 10 mostOccurred words
+                    let top10 = mostOccurredWords.slice(0, 10);
+                    top10.map(async (eachWord, index) => {
+                        if (eachWord) {
+                            await https.get(API_URL + eachWord, function (res) {
+                                var jsonVar = "";
+                                res.on('data', function (chunk) {
+                                    jsonVar += chunk;
+                                });
+                                res.on('end', function () {
+                                    if (res.statusCode === 200) {
+                                        try {
+                                            var data = JSON.parse(jsonVar);
+                                            // data is available here:
+                                            responses.push({ name: eachWord, fequency: wordFequency[eachWord], details: data });
+                                            if (responses.length == top10.length - 1) {
+                                                resObj.send(responses);
+                                            }
+                                        } catch (e) {
+                                            console.log('Error parsing JSON!');
+                                        }
+                                    } else {
+                                        console.log('Status:', res.statusCode);
                                     }
-                                } else {
-                                    console.log('Status:', res.statusCode);
-                                }
 
+                                });
+                                res.on('error', (e) => {
+                                    console.error(e);
+                                });
                             });
-                            // res.on('error', (e) => {
-                            //     console.error(e);
-                            // });
-                        });
+                        }
                     })
                 }));
         } catch (err) {
